@@ -40,7 +40,7 @@ namespace dae
 		SDL_Surface* m_pBackBuffer{ nullptr };
 		uint32_t* m_pBackBufferPixels{};
 
-		//float* m_pDepthBufferPixels{};
+		float* m_pDepthBufferPixels{};
 
 		Camera m_Camera{};
 
@@ -55,5 +55,7 @@ namespace dae
 		void Render_W1_Part1();
 		void Render_W1_Part2();
 		void Render_W1_Part3();
+		void Render_W1_Part4();
+		void Render_W1_Part5();
 	};
 }
