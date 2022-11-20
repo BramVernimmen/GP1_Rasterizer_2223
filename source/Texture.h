@@ -20,5 +20,6 @@ namespace dae
 
 		SDL_Surface* m_pSurface{ nullptr };
 		uint32_t* m_pSurfacePixels{ nullptr };
+		const float m_DivideColor{ 1.f / 255.f };
 	};
 }

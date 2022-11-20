@@ -48,6 +48,9 @@ namespace dae
 		int m_Height{};
 
 		float m_AspectRatio{};
+		
+		// currently just using 1, will probably use more later
+		Texture* m_pTexture{};
 
 		//Function that transforms the vertices from the mesh from World space to Screen space
 		void VertexTransformationFunction(const std::vector<Vertex>& vertices_in, std::vector<Vertex>& vertices_out) const; //W1 Version
@@ -57,5 +60,10 @@ namespace dae
 		void Render_W1_Part3();
 		void Render_W1_Part4();
 		void Render_W1_Part5();
+
+		void Render_W2_Part1();
+		void Render_W2_Part2();
+		void Render_W2_Part3();
+		void Render_W2_Part4();
 	};
 }
