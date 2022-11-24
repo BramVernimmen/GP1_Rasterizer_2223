@@ -21,6 +21,13 @@ namespace dae
 			return { Lerpf(c1.r, c2.r, factor), Lerpf(c1.g, c2.g, factor), Lerpf(c1.b, c2.b, factor) };
 		}
 
+
+		static ColorRGB Remap(float startValue, float minValue, float maxValue)
+		{
+			float newValue{ std::max((startValue - minValue), 0.f) / (maxValue - minValue) };
+			return {newValue, newValue, newValue};
+		}
+
 		#pragma region ColorRGB (Member) Operators
 		const ColorRGB& operator+=(const ColorRGB& c)
 		{

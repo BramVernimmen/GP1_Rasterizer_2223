@@ -9,11 +9,14 @@
 #include "Texture.h"
 #include "Utils.h"
 
+#include <iostream>
+
 using namespace dae;
 
 Renderer::Renderer(SDL_Window* pWindow) :
 	m_pWindow(pWindow),
-	m_pTexture{Texture::LoadFromFile("Resources/uv_grid_2.png")}
+	m_pTexture{Texture::LoadFromFile("Resources/uv_grid_2.png")},
+	m_pTextureTukTuk{Texture::LoadFromFile("Resources/tuktuk.png")}
 {
 	//Initialize
 	SDL_GetWindowSize(pWindow, &m_Width, &m_Height);
@@ -28,18 +31,44 @@ Renderer::Renderer(SDL_Window* pWindow) :
 	m_AspectRatio = m_Width / static_cast<float>(m_Height);
 
 	//Initialize Camera
-	m_Camera.Initialize(60.f, { .0f,.0f,-10.f });
+	//m_Camera.Initialize(60.f, { .0f,.0f,-10.f }, m_AspectRatio);
+	m_Camera.Initialize(60.f, { .0f,5.f,-30.f }, m_AspectRatio);
+
+	TestPlane = Mesh{
+			{
+				Vertex{{-3, 3, -2},		{1,1,1},	{0,0}},
+				Vertex{{0,3,-2},		{1,1,1},	{0.5f, 0}},
+				Vertex{{3,3,-2},		{1,1,1},	{1,0}},
+				Vertex{{-3, 0, -2},		{1,1,1},	{0, 0.5f}},
+				Vertex{{0,0,-2},		{1,1,1},	{0.5f, 0.5f}},
+				Vertex{{3,0,-2},		{1,1,1},	{1, 0.5f}},
+				Vertex{{-3,-3,-2},		{1,1,1},	{0,1}},
+				Vertex{{0,-3,-2},		{1,1,1},	{0.5f, 1}},
+				Vertex{{3,-3,-2},		{1,1,1},	{1,1}}
+			},
+			{
+				3,0,1,		1,4,3,		4,1,2,
+				2,5,4,		6,3,4,		4,7,6,
+				7,4,5,		5,8,7
+		},
+		PrimitiveTopology::TriangleList
+	};
+
+	Utils::ParseOBJ("Resources/tuktuk.obj", TukTuk.vertices, TukTuk.indices);
 }
 
 Renderer::~Renderer()
 {
 	delete[] m_pDepthBufferPixels;
 	delete m_pTexture;
+	delete m_pTextureTukTuk;
 }
 
 void Renderer::Update(Timer* pTimer)
 {
 	m_Camera.Update(pTimer);
+	TukTuk.worldMatrix *= Matrix::CreateRotationY(0.003f);
+
 }
 
 void Renderer::Render()
@@ -59,7 +88,10 @@ void Renderer::Render()
 	//Render_W2_Part1(); // TriangleList
 	//Render_W2_Part2(); // TriangleStrip
 	//Render_W2_Part3(); // Textures and UV
-	Render_W2_Part4(); // Depth Interpolation
+	//Render_W2_Part4(); // Depth Interpolation
+
+	// WEEK 3
+	Render_W3_Part1(); // Added Frustum Culling
 
 
 	//@END
@@ -91,6 +123,26 @@ void Renderer::VertexTransformationFunction(const std::vector<Vertex>& vertices_
 
 		// put it in the out vector
 		vertices_out.emplace_back(currVertex);
+	}
+}
+
+void Renderer::VertexTransformationFunction(Mesh& currentMesh) const
+{
+	// reserve the vertices_out so it's big enough
+	currentMesh.vertices_out.reserve(currentMesh.vertices.size());
+	const Matrix worldViewProjectionMatrix{ currentMesh.worldMatrix * m_Camera.viewMatrix * m_Camera.projectionMatrix };
+	for (const Vertex& currVertex: currentMesh.vertices) // we make copies, can't edit the original ones
+	{
+		Vertex_Out newVertexOut{ Vector4{currVertex.position, 1.f}, currVertex.color, currVertex.uv, currVertex.normal, currVertex.tangent }; // TODO DONT FORGET VIEW DIR
+		newVertexOut.position = worldViewProjectionMatrix.TransformPoint(newVertexOut.position);
+
+		// perspective divide
+		newVertexOut.position.x /= newVertexOut.position.w;
+		newVertexOut.position.y /= newVertexOut.position.w;
+		newVertexOut.position.z /= newVertexOut.position.w;
+
+
+		currentMesh.vertices_out.emplace_back(newVertexOut);
 	}
 }
 
@@ -1250,6 +1302,234 @@ void dae::Renderer::Render_W2_Part4()
 		}
 	}
 
+}
+
+
+void dae::Renderer::Render_W3_Part1()
+{
+	SDL_FillRect(m_pBackBuffer, NULL, SDL_MapRGB(m_pBackBuffer->format, 0, 0, 0));
+	std::fill_n(m_pDepthBufferPixels, (m_Width * m_Height), 1.f);
+
+	// Define Mesh (in world space)
+	std::vector<Mesh> meshes_world
+	{
+		TukTuk
+	};
+
+	for (Mesh& currMesh : meshes_world) // we loop over all meshes, transform the vertices and use those
+	{
+		VertexTransformationFunction(currMesh);
+		// get all vertices into screen space
+		std::vector<Vector2> vertices_screen{};
+		vertices_screen.reserve(currMesh.vertices_out.size());
+		for (const auto& currVertex : currMesh.vertices_out)
+		{
+			vertices_screen.emplace_back(Vector2{ (currVertex.position.x + 1) * 0.5f * m_Width, (1 - currVertex.position.y) * 0.5f * m_Height });
+		}
+
+
+		bool useModulo{ false };
+		int incrementor{ 3 };
+
+		if (currMesh.primitiveTopology == PrimitiveTopology::TriangleStrip)
+		{
+			useModulo = true;
+			incrementor = 1;
+			// when using triangleStrip we go down the list of indices one by one see slides W7, slide 8 - 11
+		}
+
+
+		for (int i{ 0 }; i < static_cast<int>(currMesh.indices.size()- 2); i += incrementor)
+		{
+			// to make it easier, get the indexes for the vertices first
+			const uint32_t indexV0{ currMesh.indices[i] };
+			// when using triangleStrip, we want to swap these if current triangle is odd (% 2 == 1)
+			const int moduloResult{ useModulo * (i % 2) }; // modulo can be heavy, calculate it once instead of twice
+			const uint32_t indexV1{ currMesh.indices[i + 1 + moduloResult]}; // if triangle is odd, we do index = i + 1 + (1* 1)
+			const uint32_t indexV2{ currMesh.indices[i + 2 - moduloResult]}; // if triangle is odd, we do index = i + 2 - (1* 1)
+
+			// check if there are multiple of the same indexes, use early out, these are buffers
+			if (indexV0 == indexV1 || indexV0 == indexV2 || indexV1 == indexV2)
+				continue;
+			
+
+			// will keep my old and longer check in here for reference
+			// doing everything in a function really simplifies the process
+			// 
+			// check for x pos
+			//const bool xIndex0InFrustrum{ currMesh.vertices_out[indexV0].position.x >= -1 && currMesh.vertices_out[indexV0].position.x <= 1 };
+			//const bool xIndex1InFrustrum{ currMesh.vertices_out[indexV1].position.x >= -1 && currMesh.vertices_out[indexV1].position.x <= 1 };
+			//const bool xIndex2InFrustrum{ currMesh.vertices_out[indexV2].position.x >= -1 && currMesh.vertices_out[indexV2].position.x <= 1 };
+			//const bool xInFrustrum{ xIndex0InFrustrum && xIndex1InFrustrum && xIndex2InFrustrum };
+			//
+			//// check for y pos
+			//const bool yIndex0InFrustrum{ currMesh.vertices_out[indexV0].position.y >= -1 && currMesh.vertices_out[indexV0].position.y <= 1 };
+			//const bool yIndex1InFrustrum{ currMesh.vertices_out[indexV1].position.y >= -1 && currMesh.vertices_out[indexV1].position.y <= 1 };
+			//const bool yIndex2InFrustrum{ currMesh.vertices_out[indexV2].position.y >= -1 && currMesh.vertices_out[indexV2].position.y <= 1 };
+			//const bool yInFrustrum{ yIndex0InFrustrum && yIndex1InFrustrum && yIndex2InFrustrum };
+			//
+			//// check for z pos
+			//const bool zIndex0InFrustrum{ currMesh.vertices_out[indexV0].position.z >= 0 && currMesh.vertices_out[indexV0].position.z <= 1 };
+			//const bool zIndex1InFrustrum{ currMesh.vertices_out[indexV1].position.z >= 0 && currMesh.vertices_out[indexV1].position.z <= 1 };
+			//const bool zIndex2InFrustrum{ currMesh.vertices_out[indexV2].position.z >= 0 && currMesh.vertices_out[indexV2].position.z <= 1 };
+			//const bool zInFrustrum{ zIndex0InFrustrum && zIndex1InFrustrum && zIndex2InFrustrum };
+
+
+			// check to see if all positions are within the frustrum
+			// store the results in seperate bools for readability
+			const bool isV0InFrustrum{ CheckPositionInFrustrum(currMesh.vertices_out[indexV0].position.GetXYZ()) };
+			const bool isV1InFrustrum{ CheckPositionInFrustrum(currMesh.vertices_out[indexV1].position.GetXYZ()) };
+			const bool isV2InFrustrum{ CheckPositionInFrustrum(currMesh.vertices_out[indexV2].position.GetXYZ()) };
+			// if it is in frustrum, code below will return false, we go through the rest of the code
+			// if it isn't inside, it returns true and we continue to the next loop
+			if (!(isV0InFrustrum && isV1InFrustrum && isV2InFrustrum))
+				continue;
+
+			// safe current vertices
+			const Vector2 v0{ vertices_screen[indexV0].x, vertices_screen[indexV0].y };
+			const Vector2 v1{ vertices_screen[indexV1].x, vertices_screen[indexV1].y };
+			const Vector2 v2{ vertices_screen[indexV2].x, vertices_screen[indexV2].y };
+
+
+			// edges to check using cross
+			const Vector2 edge10{ v1 - v0 };
+			const Vector2 edge21{ v2 - v1 };
+			const Vector2 edge02{ v0 - v2 };
+
+
+			const float triangleArea{ Vector2::Cross({v2 - v0}, edge10) };
+			const float invTriangleArea{ 1.f / triangleArea };
+
+
+			// setup bounding box
+			Vector2 boundingBoxMin{ Vector2::Min(v0, Vector2::Min(v1, v2)) };
+			Vector2 boundingBoxMax{ Vector2::Max(v0, Vector2::Max(v1, v2)) };
+			// clamp to screensize
+			// this could give a lot of if statements, easier way is to also check using Min and Max with a minVector of 0 and a screenvector containing the size
+			Vector2 screenSize{ static_cast<float>(m_Width), static_cast<float>(m_Height) }; // max values of the screen
+			boundingBoxMin = Vector2::Min(screenSize, Vector2::Max(boundingBoxMin, Vector2::Zero)); // this way, we will always be >= zero and <= screensize
+			boundingBoxMax = Vector2::Min(screenSize, Vector2::Max(boundingBoxMax, Vector2::Zero));
+
+			//RENDER LOGIC
+			// adapt to use the boundingboxMin and max instead
+			// only the pixels inside this box will be checked
+			// boundingbox is modified to the min and max size of the current triangle -> much less pixels to check
+			// boundingbox should always be square, so think of it as reducing the screensize for the current triangle
+			for (int px{ static_cast<int>(boundingBoxMin.x) }; px < boundingBoxMax.x; ++px)
+			{
+				for (int py{ static_cast<int>(boundingBoxMin.y) }; py < boundingBoxMax.y; ++py)
+				{
+					const int pixelIndex{ px + py * m_Width };
+					// get current pixel
+					const Vector2 currPixel{ static_cast<float>(px),static_cast<float>(py) };
+
+					// get vector from current vertex to pixel
+					const Vector2 v0toPixel{ v0 - currPixel };
+					const Vector2 v1toPixel{ v1 - currPixel };
+					const Vector2 v2toPixel{ v2 - currPixel };
+
+					// calculate all cross products and store them for later -> used in barycentric coordinates
+					const float edge10CrossPixel{ Vector2::Cross(edge10, v0toPixel) };
+					const float edge21CrossPixel{ Vector2::Cross(edge21, v1toPixel) };
+					const float edge02CrossPixel{ Vector2::Cross(edge02, v2toPixel) };
+
+
+					// check if everything is clockwise -> <= 0
+					// if true, it is in the triangle, if not , it isn't
+					// we want an early out so use the oposite
+					if (edge10CrossPixel > 0 || edge21CrossPixel > 0 || edge02CrossPixel > 0) // pixel is NOT in the triangle
+						continue;
+
+
+
+					// barycentric weights
+					const float weight10{ edge10CrossPixel * invTriangleArea };
+					const float weight21{ edge21CrossPixel * invTriangleArea };
+					const float weight02{ edge02CrossPixel * invTriangleArea };
+
+					// depths
+					const float depthV0{ currMesh.vertices_out[indexV0].position.z };
+					const float depthV1{ currMesh.vertices_out[indexV1].position.z };
+					const float depthV2{ currMesh.vertices_out[indexV2].position.z };
+
+					// interpolate to get the value
+					// didn't know how to do this for this step, so looked a week ahead :)
+					const float interpolatedDepthValue
+					{
+						1.f /
+						(
+							weight21 * (1.f / depthV0) +
+							weight02 * (1.f / depthV1) +
+							weight10 * (1.f / depthV2)
+						)
+					};
+
+					// final check to see if it is in frustrum
+					const bool isInFrustrum{ (interpolatedDepthValue >= 0 && interpolatedDepthValue <= 1)};
+
+					if (interpolatedDepthValue >= m_pDepthBufferPixels[pixelIndex] || !isInFrustrum )
+						continue;
+					// set the depthbufferpixel
+					m_pDepthBufferPixels[pixelIndex] = interpolatedDepthValue;
+
+
+					// view space depths
+					const float viewSpaceDepthV0{ currMesh.vertices_out[indexV0].position.w };
+					const float viewSpaceDepthV1{ currMesh.vertices_out[indexV1].position.w };
+					const float viewSpaceDepthV2{ currMesh.vertices_out[indexV2].position.w };
+
+					const float interpolatedViewSpaceDepthValue
+					{
+						1.f /
+						(
+							weight21 * (1.f / viewSpaceDepthV0) +
+							weight02 * (1.f / viewSpaceDepthV1) +
+							weight10 * (1.f / viewSpaceDepthV2)
+						)
+					};
+
+					const Vector2 interpolatedUV
+					{
+						(
+						((currMesh.vertices_out[indexV0].uv / currMesh.vertices_out[indexV0].position.w) * weight21) +
+						((currMesh.vertices_out[indexV1].uv / currMesh.vertices_out[indexV1].position.w) * weight02) +
+						((currMesh.vertices_out[indexV2].uv / currMesh.vertices_out[indexV2].position.w) * weight10)
+						) * interpolatedViewSpaceDepthValue
+					};
+
+
+					ColorRGB finalColor{};
+					if (m_ShowDepth == false)
+					{
+						finalColor = m_pTextureTukTuk->Sample(interpolatedUV);
+					}
+					else
+					{
+						finalColor = ColorRGB::Remap(interpolatedDepthValue, 0.995f, 1.f);
+					}
+
+
+					//Update Color in Buffer
+					finalColor.MaxToOne();
+
+					m_pBackBufferPixels[px + (py * m_Width)] = SDL_MapRGB(m_pBackBuffer->format,
+						static_cast<uint8_t>(finalColor.r * 255),
+						static_cast<uint8_t>(finalColor.g * 255),
+						static_cast<uint8_t>(finalColor.b * 255));
+				}
+			}
+		}
+	}
+
+}
+
+bool dae::Renderer::CheckPositionInFrustrum(const Vector3& position)
+{
+	const float maxXYZ{ 1.f };
+	const float minXY{ -1.f };
+	const float minZ{ 0.f };
+
+	return (position.x >= minXY && position.x <= maxXYZ) && (position.y >= minXY && position.y <= maxXYZ) && (position.z >= minZ && position.z <= maxXYZ);
 }
 
 bool Renderer::SaveBufferToImage() const

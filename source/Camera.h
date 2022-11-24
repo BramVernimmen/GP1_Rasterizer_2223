@@ -33,10 +33,20 @@ namespace dae
 		Matrix invViewMatrix{};
 		Matrix viewMatrix{};
 
-		void Initialize(float _fovAngle = 90.f, Vector3 _origin = {0.f,0.f,0.f})
+		Matrix projectionMatrix{};
+
+		float nearPlane{ 0.1f };
+		float farPlane{ 100.f };
+
+		float aspectRatio{ 0.f };
+
+		void Initialize(float _fovAngle = 90.f, Vector3 _origin = {0.f,0.f,0.f}, float _aspectRatio = 1.7f, float _nearPlane = 0.1f, float _farPlane = 100.f)
 		{
 			fovAngle = _fovAngle;
 			fov = tanf((fovAngle * TO_RADIANS) / 2.f);
+			aspectRatio = _aspectRatio;
+			nearPlane = _nearPlane;
+			farPlane = _farPlane;
 
 			origin = _origin;
 		}
@@ -59,7 +69,7 @@ namespace dae
 		void CalculateProjectionMatrix()
 		{
 			//TODO W2
-
+			projectionMatrix = Matrix::CreatePerspectiveFovLH(fov, aspectRatio, nearPlane, farPlane);
 			//ProjectionMatrix => Matrix::CreatePerspectiveFovLH(...) [not implemented yet]
 			//DirectX Implementation => https://learn.microsoft.com/en-us/windows/win32/direct3d9/d3dxmatrixperspectivefovlh
 		}
@@ -71,7 +81,7 @@ namespace dae
 			//Camera Update Logic
 			//...
 			float movementSpeed{ 25.f };
-			float rotationSpeed{ 40.f * TO_RADIANS };
+			float rotationSpeed{ 80.f * TO_RADIANS };
 			//Keyboard Input
 			const uint8_t* pKeyboardState = SDL_GetKeyboardState(nullptr);
 
@@ -134,6 +144,7 @@ namespace dae
 				origin += up * -((movementSpeed / 2.f) * static_cast<float>(mouseY) * deltaTime);
 				break;
 			}
+
 
 			const Matrix finalRotation{ Matrix::CreateRotationX(totalPitch) * Matrix::CreateRotationY(totalYaw) };
 

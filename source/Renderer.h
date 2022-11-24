@@ -33,6 +33,8 @@ namespace dae
 
 		bool SaveBufferToImage() const;
 
+		void ToggleDepth() { m_ShowDepth = !m_ShowDepth; }
+
 	private:
 		SDL_Window* m_pWindow{};
 
@@ -51,9 +53,16 @@ namespace dae
 		
 		// currently just using 1, will probably use more later
 		Texture* m_pTexture{};
+		Texture* m_pTextureTukTuk{};
+
+		Mesh TukTuk{ {},{}, PrimitiveTopology::TriangleList };
+		Mesh TestPlane{};
+
+		bool m_ShowDepth{ false };
 
 		//Function that transforms the vertices from the mesh from World space to Screen space
 		void VertexTransformationFunction(const std::vector<Vertex>& vertices_in, std::vector<Vertex>& vertices_out) const; //W1 Version
+		void VertexTransformationFunction(Mesh& currentMesh) const; //W3 Version
 
 		void Render_W1_Part1();
 		void Render_W1_Part2();
@@ -65,5 +74,9 @@ namespace dae
 		void Render_W2_Part2();
 		void Render_W2_Part3();
 		void Render_W2_Part4();
+
+		void Render_W3_Part1();
+
+		bool CheckPositionInFrustrum(const Vector3& position);
 	};
 }
