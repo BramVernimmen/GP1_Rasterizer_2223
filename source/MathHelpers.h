@@ -17,6 +17,8 @@ namespace dae
 	constexpr auto PI_2 = 6.283185307179586476925f;
 	constexpr auto PI_4 = 12.56637061435917295385f;
 
+	constexpr auto INV_PI = 1.0f / PI;
+
 	constexpr auto TO_DEGREES = (180.0f / PI);
 	constexpr auto TO_RADIANS(PI / 180.0f);
 
