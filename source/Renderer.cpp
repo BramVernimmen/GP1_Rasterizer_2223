@@ -154,10 +154,10 @@ void Renderer::VertexTransformationFunction(Mesh& currentMesh) const
 	const Matrix worldViewProjectionMatrix{ currentMesh.worldMatrix * m_Camera.viewMatrix * m_Camera.projectionMatrix };
 	for (const Vertex& currVertex: currentMesh.vertices) // we make copies, can't edit the original ones
 	{
-		Vertex_Out newVertexOut{ 
-			Vector4{currVertex.position, 1.f}, 
-			currVertex.color, 
-			currVertex.uv, 
+		Vertex_Out newVertexOut{
+			Vector4{currVertex.position, 1.f},
+			currVertex.color,
+			currVertex.uv,
 			currentMesh.worldMatrix.TransformVector(currVertex.normal),
 			currentMesh.worldMatrix.TransformVector(currVertex.tangent),
 			currentMesh.worldMatrix.TransformPoint(currVertex.position )- m_Camera.origin };
@@ -1700,29 +1700,30 @@ void dae::Renderer::Render_W4_Part1()
 
 
 					// view space depths
-					const float viewSpaceDepthV0{ currMesh.vertices_out[indexV0].position.w };
-					const float viewSpaceDepthV1{ currMesh.vertices_out[indexV1].position.w };
-					const float viewSpaceDepthV2{ currMesh.vertices_out[indexV2].position.w };
+					const float viewSpaceDepthV0Inv{ 1.f / currMesh.vertices_out[indexV0].position.w };
+					const float viewSpaceDepthV1Inv{ 1.f / currMesh.vertices_out[indexV1].position.w };
+					const float viewSpaceDepthV2Inv{ 1.f / currMesh.vertices_out[indexV2].position.w };
 
 					const float interpolatedViewSpaceDepthValue
 					{
 						1.f /
 						(
-							weight21 * (1.f / viewSpaceDepthV0) +
-							weight02 * (1.f / viewSpaceDepthV1) +
-							weight10 * (1.f / viewSpaceDepthV2)
+							weight21 * viewSpaceDepthV0Inv +
+							weight02 * viewSpaceDepthV1Inv +
+							weight10 * viewSpaceDepthV2Inv
 						)
 					};
 
-					const Vector2 interpolatedUV
-					{
-						(
-						((currMesh.vertices_out[indexV0].uv / currMesh.vertices_out[indexV0].position.w) * weight21) +
-						((currMesh.vertices_out[indexV1].uv / currMesh.vertices_out[indexV1].position.w) * weight02) +
-						((currMesh.vertices_out[indexV2].uv / currMesh.vertices_out[indexV2].position.w) * weight10)
-						) * interpolatedViewSpaceDepthValue
-					};
+					//const Vector2 interpolatedUV
+					//{
+					//	(
+					//	((currMesh.vertices_out[indexV0].uv / currMesh.vertices_out[indexV0].position.w) * weight21) +
+					//	((currMesh.vertices_out[indexV1].uv / currMesh.vertices_out[indexV1].position.w) * weight02) +
+					//	((currMesh.vertices_out[indexV2].uv / currMesh.vertices_out[indexV2].position.w) * weight10)
+					//	) * interpolatedViewSpaceDepthValue
+					//};
 
+					const Vector2 interpolatedUV{ InterpolateAttribute(currMesh.vertices_out[indexV0].uv, currMesh.vertices_out[indexV1].uv, currMesh.vertices_out[indexV2].uv, viewSpaceDepthV0Inv, viewSpaceDepthV1Inv, viewSpaceDepthV2Inv, weight21, weight02, weight10, interpolatedViewSpaceDepthValue) };
 
 					ColorRGB finalColor{};
 					if (m_ShowDepth == false)
@@ -1734,40 +1735,53 @@ void dae::Renderer::Render_W4_Part1()
 							weight02 * currMesh.vertices_out[indexV1].position.GetXY() +
 							weight10 * currMesh.vertices_out[indexV2].position.GetXY()
 						};
-						const ColorRGB interpolatedColor
-						{
-							(
-							((currMesh.vertices_out[indexV0].color / currMesh.vertices_out[indexV0].position.w) * weight21) +
-							((currMesh.vertices_out[indexV1].color / currMesh.vertices_out[indexV1].position.w) * weight02) +
-							((currMesh.vertices_out[indexV2].color / currMesh.vertices_out[indexV2].position.w) * weight10)
-							)* interpolatedViewSpaceDepthValue
-						};
-						const Vector3 interpolatedNormal
-						{
-							((
-							((currMesh.vertices_out[indexV0].normal / currMesh.vertices_out[indexV0].position.w) * weight21) +
-							((currMesh.vertices_out[indexV1].normal / currMesh.vertices_out[indexV1].position.w) * weight02) +
-							((currMesh.vertices_out[indexV2].normal / currMesh.vertices_out[indexV2].position.w) * weight10)
-							)* interpolatedViewSpaceDepthValue).Normalized()
 
-						};
-						const Vector3 interpolatedTangent
-						{
-							((
-							((currMesh.vertices_out[indexV0].tangent / currMesh.vertices_out[indexV0].position.w) * weight21) +
-							((currMesh.vertices_out[indexV1].tangent / currMesh.vertices_out[indexV1].position.w) * weight02) +
-							((currMesh.vertices_out[indexV2].tangent / currMesh.vertices_out[indexV2].position.w) * weight10)
-							)* interpolatedViewSpaceDepthValue).Normalized()
-						};
+						//const ColorRGB interpolatedColor
+						//{
+						//	(
+						//	((currMesh.vertices_out[indexV0].color / currMesh.vertices_out[indexV0].position.w) * weight21) +
+						//	((currMesh.vertices_out[indexV1].color / currMesh.vertices_out[indexV1].position.w) * weight02) +
+						//	((currMesh.vertices_out[indexV2].color / currMesh.vertices_out[indexV2].position.w) * weight10)
+						//	)* interpolatedViewSpaceDepthValue
+						//};
 
-						const Vector3 interpolatedViewDirection
-						{
-							((
-							((currMesh.vertices_out[indexV0].viewDirection / currMesh.vertices_out[indexV0].position.w) * weight21) +
-							((currMesh.vertices_out[indexV1].viewDirection / currMesh.vertices_out[indexV1].position.w) * weight02) +
-							((currMesh.vertices_out[indexV2].viewDirection / currMesh.vertices_out[indexV2].position.w) * weight10)
-							)* interpolatedViewSpaceDepthValue).Normalized()
-						};
+						const ColorRGB interpolatedColor{ 
+							InterpolateAttribute(currMesh.vertices_out[indexV0].color, currMesh.vertices_out[indexV1].color, currMesh.vertices_out[indexV2].color, viewSpaceDepthV0Inv, viewSpaceDepthV1Inv, viewSpaceDepthV2Inv, weight21, weight02, weight10, interpolatedViewSpaceDepthValue) };
+
+
+						//const Vector3 interpolatedNormal
+						//{
+						//	((
+						//	((currMesh.vertices_out[indexV0].normal / currMesh.vertices_out[indexV0].position.w) * weight21) +
+						//	((currMesh.vertices_out[indexV1].normal / currMesh.vertices_out[indexV1].position.w) * weight02) +
+						//	((currMesh.vertices_out[indexV2].normal / currMesh.vertices_out[indexV2].position.w) * weight10)
+						//	)* interpolatedViewSpaceDepthValue).Normalized()
+						//
+						//};
+
+						const Vector3 interpolatedNormal{ InterpolateAttribute(currMesh.vertices_out[indexV0].normal, currMesh.vertices_out[indexV1].normal, currMesh.vertices_out[indexV2].normal, viewSpaceDepthV0Inv, viewSpaceDepthV1Inv, viewSpaceDepthV2Inv, weight21, weight02, weight10, interpolatedViewSpaceDepthValue).Normalized()};
+
+						//const Vector3 interpolatedTangent
+						//{
+						//	((
+						//	((currMesh.vertices_out[indexV0].tangent / currMesh.vertices_out[indexV0].position.w) * weight21) +
+						//	((currMesh.vertices_out[indexV1].tangent / currMesh.vertices_out[indexV1].position.w) * weight02) +
+						//	((currMesh.vertices_out[indexV2].tangent / currMesh.vertices_out[indexV2].position.w) * weight10)
+						//	)* interpolatedViewSpaceDepthValue).Normalized()
+						//};
+
+						const Vector3 interpolatedTangent{ InterpolateAttribute(currMesh.vertices_out[indexV0].tangent, currMesh.vertices_out[indexV1].tangent, currMesh.vertices_out[indexV2].tangent, viewSpaceDepthV0Inv, viewSpaceDepthV1Inv, viewSpaceDepthV2Inv, weight21, weight02, weight10, interpolatedViewSpaceDepthValue).Normalized()};
+
+						//const Vector3 interpolatedViewDirection
+						//{
+						//	((
+						//	((currMesh.vertices_out[indexV0].viewDirection / currMesh.vertices_out[indexV0].position.w) * weight21) +
+						//	((currMesh.vertices_out[indexV1].viewDirection / currMesh.vertices_out[indexV1].position.w) * weight02) +
+						//	((currMesh.vertices_out[indexV2].viewDirection / currMesh.vertices_out[indexV2].position.w) * weight10)
+						//	)* interpolatedViewSpaceDepthValue).Normalized()
+						//};
+
+						const Vector3 interpolatedViewDirection{ InterpolateAttribute(currMesh.vertices_out[indexV0].viewDirection, currMesh.vertices_out[indexV1].viewDirection, currMesh.vertices_out[indexV2].viewDirection, viewSpaceDepthV0Inv, viewSpaceDepthV1Inv, viewSpaceDepthV2Inv, weight21, weight02, weight10, interpolatedViewSpaceDepthValue).Normalized()};
 
 
 						Vertex_Out shadingInfo{
@@ -1876,7 +1890,7 @@ ColorRGB dae::Renderer::PixelShading(const Vertex_Out& v)
 		break;
 	}
 
-
+	return colors::Black;
 
 }
 
@@ -1890,6 +1904,12 @@ bool dae::Renderer::CheckPositionInFrustrum(const Vector3& position)
 
 	return (position.x >= minXY && position.x <= maxXYZ) && (position.y >= minXY && position.y <= maxXYZ) && (position.z >= minZ && position.z <= maxXYZ);
 }
+
+//auto dae::Renderer::InterPolateAttribute(const auto& value1, const auto& value2, const auto& value3, float divisionValueInv1, float divisionValueInv2, float divisionValueInv3, float weight1, float weight2, float weight3)
+//{
+//
+//
+//}
 
 bool Renderer::SaveBufferToImage() const
 {

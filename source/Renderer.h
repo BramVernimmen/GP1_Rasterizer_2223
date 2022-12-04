@@ -17,6 +17,8 @@ namespace dae
 	class Timer;
 	class Scene;
 
+	struct Vector2;
+
 	class Renderer final
 	{
 	public:
@@ -117,6 +119,12 @@ namespace dae
 		ColorRGB PixelShading(const Vertex_Out& v);
 
 		bool CheckPositionInFrustrum(const Vector3& position);
+
+		//template <typename T>
+		auto InterpolateAttribute(const auto& value1, const auto& value2, const auto& value3, float divisionValueInv1, float divisionValueInv2, float divisionValueInv3, float weight1, float weight2, float weight3, float wValue)
+		{
+			return  ((value1 * divisionValueInv1 * weight1) + (value2 * divisionValueInv2 * weight2) +  (value3 * divisionValueInv3 * weight3)) * wValue ;
+		};
 
 	};
 }
