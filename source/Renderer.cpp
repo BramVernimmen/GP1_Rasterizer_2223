@@ -1663,10 +1663,11 @@ void dae::Renderer::Render_W4_Part1()
 					// check if everything is clockwise -> <= 0
 					// if true, it is in the triangle, if not , it isn't
 					// we want an early out so use the oposite
-					if (edge10CrossPixel > 0 || edge21CrossPixel > 0 || edge02CrossPixel > 0) // pixel is NOT in the triangle
+					//if (edge10CrossPixel > 0 || edge21CrossPixel > 0 || edge02CrossPixel > 0) // pixel is NOT in the triangle
+					//	continue;
+
+					if (!(edge10CrossPixel >= 0 && edge21CrossPixel >= 0 && edge02CrossPixel >= 0))
 						continue;
-
-
 
 					// barycentric weights
 					const float weight10{ edge10CrossPixel * invTriangleArea };

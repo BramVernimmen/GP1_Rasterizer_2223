@@ -87,7 +87,8 @@ namespace dae
 
 		Matrix m_TranslateObjectPosition{};
 		float m_CurrentRotation{};
-		const float m_RotationSpeed{  1.f }; //  * TO_RADIANS
+		//const float m_RotationSpeed{  1.f }; //  * TO_RADIANS
+		const float m_RotationSpeed{  45.f * TO_RADIANS }; //  * TO_RADIANS
 		const Vector3 m_LightDirection{ 0.577f, -0.577f, 0.577f };
 		const float m_LightIntensity{ 7.f };
 		const float m_Shininess{ 25.f };
